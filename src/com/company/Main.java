@@ -141,6 +141,7 @@ public class Main {
             if (!sub.contains("Wikipedia:") &&
                     !sub.contains("File:") &&
                     !sub.contains("https://") &&
+                    !sub.contains("/w/index.php") &&
                     !sub.contains("wikimedia.org") &&
                     !sub.contains("m.wikipedia.org") &&
                     !sub.contains("wiktionary.org") &&
