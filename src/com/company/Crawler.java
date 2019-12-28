@@ -14,17 +14,27 @@ public class Crawler {
 
     //base variables
     private final static String BASE_URL = "https://en.wikipedia.org";
-    private String url;
+    private String startUrl;
     private CrawlerInterface crawlerInterface;
+
+    //loop variables
+    Queue<String> queue = new LinkedList<>();
+    int index = 0;
+
+    //thread variables
+    private boolean downloading = false;
+    private final Object queueLock = new Object();
+    private final Object downloaderLock = new Object();
+    private final Object indexLock = new Object();
 
     private static Graph graph = new Graph();
 
     public Crawler(String url, CrawlerInterface interf) {
-        this.url = url;
+        this.startUrl = url;
         this.crawlerInterface = interf;
     }
 
-    public void start(String startUrl) throws IOException {
+    public void start() throws IOException {
         /*
         now we should loop through all elements for which we have two options:
             -recursively
@@ -32,16 +42,25 @@ public class Crawler {
         */
 
         //we declare start
-        Queue<String> queue = new LinkedList<>();
         if (graph.set.add(BASE_URL + startUrl)) {
             queue.add(BASE_URL + startUrl);
         }
 
-        //we use debug index
-        int index = 0;
-
         //we loop as long as we have elements in queue
-        while (queue.size() > 0) {
+        while (queue.size() > 0 || this.downloading) {
+            if (queue.size() == 0) {
+                synchronized (downloaderLock) {
+                    this.parseLink();
+                }
+            }
+            else {
+                this.parseLink();
+            }
+        }
+    }
+
+    private void parseLink() {
+        synchronized (queueLock) {
             String currentUrl = queue.remove();
             crawlerInterface.onDequeue(index, currentUrl, queue.size());
 
@@ -62,26 +81,36 @@ public class Crawler {
                 }
 
                 graph.add(new GraphElement(title, startUrl, urls));
-                index++;
+
+                synchronized (indexLock) {
+                    index++;
+                }
             }
         }
     }
 
     private StringBuilder httpRequest(String url) {
         try {
-            URL requestURL = new URL(url);
-            URLConnection requestConnection = requestURL.openConnection();
-            BufferedReader in = new BufferedReader(new InputStreamReader(requestConnection.getInputStream()));
+            synchronized (downloaderLock) {
+                this.downloading = true;
+
+                URL requestURL = new URL(url);
+                URLConnection requestConnection = requestURL.openConnection();
+                BufferedReader in = new BufferedReader(new InputStreamReader(requestConnection.getInputStream()));
 
 
-            StringBuilder result = new StringBuilder();
-            String inputLine;
-            while ((inputLine = in.readLine()) != null) {
-                result.append(inputLine);
+                StringBuilder result = new StringBuilder();
+                String inputLine;
+                while ((inputLine = in.readLine()) != null) {
+                    result.append(inputLine);
+                }
+                in.close();
+
+                this.downloading = false;
+
+                return result;
             }
-            in.close();
 
-            return result;
         } catch (IOException e) {
             System.out.println("FAILED!");
             return null;

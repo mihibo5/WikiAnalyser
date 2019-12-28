@@ -30,7 +30,7 @@ public class Main {
                     if (debug) System.out.println(printRuntimeUsage());
                 }
             });
-            crawler.start(args[0]);
+            crawler.start();
         }
         else {
             throw new Exception("URL required!");
