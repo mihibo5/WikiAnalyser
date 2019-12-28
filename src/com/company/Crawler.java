@@ -22,15 +22,17 @@ public class Crawler {
     int index = 0;
 
     //thread variables
+    private boolean multithreadingEnabled = false;
+    private int threadCounter = 1;
     private boolean downloading = false;
     private final Object queueLock = new Object();
-    private final Object downloaderLock = new Object();
     private final Object indexLock = new Object();
 
     private static Graph graph = new Graph();
 
-    public Crawler(String url, CrawlerInterface interf) {
+    public Crawler(String url, boolean multithreading, CrawlerInterface interf) {
         this.startUrl = url;
+        this.multithreadingEnabled = multithreading;
         this.crawlerInterface = interf;
     }
 
@@ -47,24 +49,31 @@ public class Crawler {
         }
 
         //we loop as long as we have elements in queue
-        while (queue.size() > 0 || this.downloading) {
+        while (queue.size() > 0 || this.downloading || threadCounter > 0) {
             if (queue.size() == 0) {
-                synchronized (downloaderLock) {
-                    this.parseLink();
+                synchronized (queueLock) {
+                    if (this.multithreadingEnabled) new Thread(this::parseLink).start();
+                    else this.parseLink();
                 }
             }
             else {
-                this.parseLink();
+                if (this.multithreadingEnabled) new Thread(this::parseLink).start();
+                else this.parseLink();
             }
         }
     }
 
     private void parseLink() {
+        if (this.multithreadingEnabled) threadCounter++;
+
         synchronized (queueLock) {
             String currentUrl = queue.remove();
-            crawlerInterface.onDequeue(index, currentUrl, queue.size());
+            crawlerInterface.onDequeue(index, currentUrl, queue.size(), this.threadCounter);
 
+            this.downloading = true;
             StringBuilder result = httpRequest(currentUrl);
+            this.downloading = false;
+
             if (result != null) {
                 String title = extractTitle(result);
                 List<String> urls = extractUrls(extractContent(result));
@@ -87,29 +96,25 @@ public class Crawler {
                 }
             }
         }
+
+        if (this.multithreadingEnabled) threadCounter--;
     }
 
     private StringBuilder httpRequest(String url) {
         try {
-            synchronized (downloaderLock) {
-                this.downloading = true;
+            URL requestURL = new URL(url);
+            URLConnection requestConnection = requestURL.openConnection();
+            BufferedReader in = new BufferedReader(new InputStreamReader(requestConnection.getInputStream()));
 
-                URL requestURL = new URL(url);
-                URLConnection requestConnection = requestURL.openConnection();
-                BufferedReader in = new BufferedReader(new InputStreamReader(requestConnection.getInputStream()));
-
-
-                StringBuilder result = new StringBuilder();
-                String inputLine;
-                while ((inputLine = in.readLine()) != null) {
-                    result.append(inputLine);
-                }
-                in.close();
-
-                this.downloading = false;
-
-                return result;
+            StringBuilder result = new StringBuilder();
+            String inputLine;
+            while ((inputLine = in.readLine()) != null) {
+                result.append(inputLine);
             }
+            in.close();
+
+            return result;
+
 
         } catch (IOException e) {
             System.out.println("FAILED!");

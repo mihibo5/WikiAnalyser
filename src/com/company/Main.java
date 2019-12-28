@@ -9,6 +9,7 @@ public class Main {
 
     //debug variables
     private static boolean debug = false;
+    private static boolean multithreading = false;
 
     //time variables
     private static SimpleDateFormat dateFormatter;
@@ -22,11 +23,11 @@ public class Main {
 
         if (args.length > 0) {
             //all we do in main function is start the process
-            Crawler crawler = new Crawler(args[0], new CrawlerInterface() {
+            Crawler crawler = new Crawler(args[0], multithreading, new CrawlerInterface() {
 
                 @Override
-                public void onDequeue(int index, String url, int queueSize) {
-                    System.out.println(index + ": " + url + ", queue size: " + queueSize);
+                public void onDequeue(int index, String url, int queueSize, int threadCount) {
+                    System.out.println(index + ": " + url + ", queue size: " + queueSize + ", thread counter: " + threadCount);
                     if (debug) System.out.println(printRuntimeUsage());
                 }
             });
